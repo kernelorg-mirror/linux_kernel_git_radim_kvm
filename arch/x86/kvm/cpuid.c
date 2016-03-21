@@ -315,8 +315,7 @@ static inline int __do_cpuid_ent(struct kvm_cpuid_entry2 *entry, u32 function,
 	unsigned f_mpx = kvm_mpx_supported() ? F(MPX) : 0;
 	unsigned f_xsaves = kvm_x86_ops->xsaves_supported() ? F(XSAVES) : 0;
 
-	/* cpuid 1.edx */
-	const u32 kvm_supported_word0_x86_features =
+	const u32 kvm_supported_cpuid_1_edx_x86_features =
 		F(FPU) | F(VME) | F(DE) | F(PSE) |
 		F(TSC) | F(MSR) | F(PAE) | F(MCE) |
 		F(CX8) | F(APIC) | 0 /* Reserved */ | F(SEP) |
@@ -325,8 +324,8 @@ static inline int __do_cpuid_ent(struct kvm_cpuid_entry2 *entry, u32 function,
 		0 /* Reserved, DS, ACPI */ | F(MMX) |
 		F(FXSR) | F(XMM) | F(XMM2) | F(SELFSNOOP) |
 		0 /* HTT, TM, Reserved, PBE */;
-	/* cpuid 0x80000001.edx */
-	const u32 kvm_supported_word1_x86_features =
+
+	const u32 kvm_supported_cpuid_8000_0001_edx_x86_features =
 		F(FPU) | F(VME) | F(DE) | F(PSE) |
 		F(TSC) | F(MSR) | F(PAE) | F(MCE) |
 		F(CX8) | F(APIC) | 0 /* Reserved */ | F(SYSCALL) |
@@ -335,8 +334,8 @@ static inline int __do_cpuid_ent(struct kvm_cpuid_entry2 *entry, u32 function,
 		f_nx | 0 /* Reserved */ | F(MMXEXT) | F(MMX) |
 		F(FXSR) | F(FXSR_OPT) | f_gbpages | f_rdtscp |
 		0 /* Reserved */ | f_lm | F(3DNOWEXT) | F(3DNOW);
-	/* cpuid 1.ecx */
-	const u32 kvm_supported_word4_x86_features =
+
+	const u32 kvm_supported_cpuid_1_ecx_x86_features =
 		/* NOTE: MONITOR (and MWAIT) are emulated as NOP,
 		 * but *not* advertised to guests via CPUID ! */
 		F(XMM3) | F(PCLMULQDQ) | 0 /* DTES64, MONITOR */ |
@@ -347,32 +346,28 @@ static inline int __do_cpuid_ent(struct kvm_cpuid_entry2 *entry, u32 function,
 		F(XMM4_2) | F(X2APIC) | F(MOVBE) | F(POPCNT) |
 		0 /* Reserved*/ | F(AES) | F(XSAVE) | 0 /* OSXSAVE */ | F(AVX) |
 		F(F16C) | F(RDRAND);
-	/* cpuid 0x80000001.ecx */
-	const u32 kvm_supported_word6_x86_features =
+
+	const u32 kvm_supported_cpuid_8000_0001_ecx_x86_features =
 		F(LAHF_LM) | F(CMP_LEGACY) | 0 /*SVM*/ | 0 /* ExtApicSpace */ |
 		F(CR8_LEGACY) | F(ABM) | F(SSE4A) | F(MISALIGNSSE) |
 		F(3DNOWPREFETCH) | F(OSVW) | 0 /* IBS */ | F(XOP) |
 		0 /* SKINIT, WDT, LWP */ | F(FMA4) | F(TBM);
 
-	/* cpuid 0xC0000001.edx */
-	const u32 kvm_supported_word5_x86_features =
+	const u32 kvm_supported_cpuid_c000_0001_edx_x86_features =
 		F(XSTORE) | F(XSTORE_EN) | F(XCRYPT) | F(XCRYPT_EN) |
 		F(ACE2) | F(ACE2_EN) | F(PHE) | F(PHE_EN) |
 		F(PMM) | F(PMM_EN);
 
-	/* cpuid 7.0.ebx */
-	const u32 kvm_supported_word9_x86_features =
+	const u32 kvm_supported_cpuid_7_0_ebx_x86_features =
 		F(FSGSBASE) | F(BMI1) | F(HLE) | F(AVX2) | F(SMEP) |
 		F(BMI2) | F(ERMS) | f_invpcid | F(RTM) | f_mpx | F(RDSEED) |
 		F(ADX) | F(SMAP) | F(AVX512F) | F(AVX512PF) | F(AVX512ER) |
 		F(AVX512CD) | F(CLFLUSHOPT) | F(CLWB) | F(PCOMMIT);
 
-	/* cpuid 0xD.1.eax */
-	const u32 kvm_supported_word10_x86_features =
+	const u32 kvm_supported_cpuid_d_1_eax_x86_features =
 		F(XSAVEOPT) | F(XSAVEC) | F(XGETBV1) | f_xsaves;
 
-	/* cpuid 7.0.ecx*/
-	const u32 kvm_supported_word16_x86_features = F(PKU) | 0 /*OSPKE*/;
+	const u32 kvm_supported_cpuid_7_ecx_x86_features = F(PKU) | 0 /*OSPKE*/;
 
 	/* all calls to cpuid_count() should be made on the same cpu */
 	get_cpu();
@@ -390,10 +385,10 @@ static inline int __do_cpuid_ent(struct kvm_cpuid_entry2 *entry, u32 function,
 		entry->eax = min(entry->eax, (u32)0xd);
 		break;
 	case 1:
-		entry->edx &= kvm_supported_word0_x86_features;
-		cpuid_mask(&entry->edx, 0);
-		entry->ecx &= kvm_supported_word4_x86_features;
-		cpuid_mask(&entry->ecx, 4);
+		entry->edx &= kvm_supported_cpuid_1_edx_x86_features;
+		cpuid_mask(&entry->edx, CPUID_1_EDX);
+		entry->ecx &= kvm_supported_cpuid_1_ecx_x86_features;
+		cpuid_mask(&entry->ecx, CPUID_1_ECX);
 		/* we support x2apic emulation even if host does not support
 		 * it since we emulate x2apic in software */
 		entry->ecx |= F(X2APIC);
@@ -447,12 +442,12 @@ static inline int __do_cpuid_ent(struct kvm_cpuid_entry2 *entry, u32 function,
 		entry->flags |= KVM_CPUID_FLAG_SIGNIFCANT_INDEX;
 		/* Mask ebx against host capability word 9 */
 		if (index == 0) {
-			entry->ebx &= kvm_supported_word9_x86_features;
-			cpuid_mask(&entry->ebx, 9);
+			entry->ebx &= kvm_supported_cpuid_7_0_ebx_x86_features;
+			cpuid_mask(&entry->ebx, CPUID_7_0_EBX);
 			// TSC_ADJUST is emulated
 			entry->ebx |= F(TSC_ADJUST);
-			entry->ecx &= kvm_supported_word16_x86_features;
-			cpuid_mask(&entry->ecx, 16);
+			entry->ecx &= kvm_supported_cpuid_7_ecx_x86_features;
+			cpuid_mask(&entry->ecx, CPUID_7_ECX);
 			if (!tdp_enabled)
 				/*
 				 * PKU is not yet implemented for shadow
@@ -537,7 +532,7 @@ static inline int __do_cpuid_ent(struct kvm_cpuid_entry2 *entry, u32 function,
 
 			do_cpuid_1_ent(&entry[i], function, idx);
 			if (idx == 1) {
-				entry[i].eax &= kvm_supported_word10_x86_features;
+				entry[i].eax &= kvm_supported_cpuid_d_1_eax_x86_features;
 				entry[i].ebx = 0;
 				if (entry[i].eax & (F(XSAVES)|F(XSAVEC)))
 					entry[i].ebx =
@@ -587,10 +582,10 @@ static inline int __do_cpuid_ent(struct kvm_cpuid_entry2 *entry, u32 function,
 		entry->eax = min(entry->eax, 0x8000001a);
 		break;
 	case 0x80000001:
-		entry->edx &= kvm_supported_word1_x86_features;
-		cpuid_mask(&entry->edx, 1);
-		entry->ecx &= kvm_supported_word6_x86_features;
-		cpuid_mask(&entry->ecx, 6);
+		entry->edx &= kvm_supported_cpuid_8000_0001_edx_x86_features;
+		cpuid_mask(&entry->edx, CPUID_8000_0001_EDX);
+		entry->ecx &= kvm_supported_cpuid_8000_0001_ecx_x86_features;
+		cpuid_mask(&entry->ecx, CPUID_8000_0001_ECX);
 		break;
 	case 0x80000007: /* Advanced power management */
 		/* invariant TSC is CPUID.80000007H:EDX[8] */
@@ -623,8 +618,8 @@ static inline int __do_cpuid_ent(struct kvm_cpuid_entry2 *entry, u32 function,
 		entry->eax = min(entry->eax, 0xC0000004);
 		break;
 	case 0xC0000001:
-		entry->edx &= kvm_supported_word5_x86_features;
-		cpuid_mask(&entry->edx, 5);
+		entry->edx &= kvm_supported_cpuid_c000_0001_edx_x86_features;
+		cpuid_mask(&entry->edx, CPUID_C000_0001_EDX);
 		break;
 	case 3: /* Processor serial number */
 	case 5: /* MONITOR/MWAIT */

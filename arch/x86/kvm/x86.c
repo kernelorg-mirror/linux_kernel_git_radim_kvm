@@ -102,6 +102,9 @@ module_param(ignore_msrs, bool, S_IRUGO | S_IWUSR);
 unsigned int min_timer_period_us = 500;
 module_param(min_timer_period_us, uint, S_IRUGO | S_IWUSR);
 
+static bool __read_mostly kvmclock_periodic_sync = true;
+module_param(kvmclock_periodic_sync, bool, S_IRUGO);
+
 bool __read_mostly kvm_has_tsc_control;
 EXPORT_SYMBOL_GPL(kvm_has_tsc_control);
 u32  __read_mostly kvm_max_guest_tsc_khz;
@@ -1862,12 +1865,46 @@ static int kvm_guest_time_update(struct kvm_vcpu *v)
 
 #define KVMCLOCK_UPDATE_DELAY msecs_to_jiffies(100)
 
+static void kvmclock_update_fn(struct work_struct *work)
+{
+	int i;
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct kvm_arch *ka = container_of(dwork, struct kvm_arch,
+					   kvmclock_update_work);
+	struct kvm *kvm = container_of(ka, struct kvm, arch);
+	struct kvm_vcpu *vcpu;
+
+	kvm_for_each_vcpu(i, vcpu, kvm) {
+		kvm_make_request(KVM_REQ_CLOCK_UPDATE, vcpu);
+		kvm_vcpu_kick(vcpu);
+	}
+}
+
 static void kvm_gen_kvmclock_update(struct kvm_vcpu *v)
 {
+	struct kvm *kvm = v->kvm;
+
 	kvm_make_request(KVM_REQ_CLOCK_UPDATE, v);
+	schedule_delayed_work(&kvm->arch.kvmclock_update_work,
+					KVMCLOCK_UPDATE_DELAY);
 }
 
 #define KVMCLOCK_SYNC_PERIOD (300 * HZ)
+
+static void kvmclock_sync_fn(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct kvm_arch *ka = container_of(dwork, struct kvm_arch,
+					   kvmclock_sync_work);
+	struct kvm *kvm = container_of(ka, struct kvm, arch);
+
+	if (!kvmclock_periodic_sync)
+		return;
+
+	schedule_delayed_work(&kvm->arch.kvmclock_update_work, 0);
+	schedule_delayed_work(&kvm->arch.kvmclock_sync_work,
+					KVMCLOCK_SYNC_PERIOD);
+}
 
 static int set_msr_mce(struct kvm_vcpu *vcpu, u32 msr, u64 data)
 {
@@ -7350,6 +7387,7 @@ int kvm_arch_vcpu_setup(struct kvm_vcpu *vcpu)
 void kvm_arch_vcpu_postcreate(struct kvm_vcpu *vcpu)
 {
 	struct msr_data msr;
+	struct kvm *kvm = vcpu->kvm;
 
 	if (vcpu_load(vcpu))
 		return;
@@ -7358,6 +7396,12 @@ void kvm_arch_vcpu_postcreate(struct kvm_vcpu *vcpu)
 	msr.host_initiated = true;
 	kvm_write_tsc(vcpu, &msr);
 	vcpu_put(vcpu);
+
+	if (!kvmclock_periodic_sync)
+		return;
+
+	schedule_delayed_work(&kvm->arch.kvmclock_sync_work,
+					KVMCLOCK_SYNC_PERIOD);
 }
 
 void kvm_arch_vcpu_destroy(struct kvm_vcpu *vcpu)
@@ -7704,6 +7748,9 @@ int kvm_arch_init_vm(struct kvm *kvm, unsigned long type)
 
 	pvclock_update_vm_gtod_copy(kvm);
 
+	INIT_DELAYED_WORK(&kvm->arch.kvmclock_update_work, kvmclock_update_fn);
+	INIT_DELAYED_WORK(&kvm->arch.kvmclock_sync_work, kvmclock_sync_fn);
+
 	kvm_page_track_init(kvm);
 	kvm_mmu_init_vm(kvm);
 
@@ -7744,6 +7791,8 @@ static void kvm_free_vcpus(struct kvm *kvm)
 
 void kvm_arch_sync_events(struct kvm *kvm)
 {
+	cancel_delayed_work_sync(&kvm->arch.kvmclock_sync_work);
+	cancel_delayed_work_sync(&kvm->arch.kvmclock_update_work);
 	kvm_free_all_assigned_devices(kvm);
 	kvm_free_pit(kvm);
 }
